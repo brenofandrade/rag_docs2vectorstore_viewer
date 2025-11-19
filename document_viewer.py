@@ -16,6 +16,140 @@ from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
+from difflib import SequenceMatcher
+
+
+class Document:
+    """Classe simples para representar um documento com conteúdo e metadados."""
+
+    def __init__(self, page_content: str, metadata: dict = None):
+        self.page_content = page_content
+        self.metadata = metadata if metadata is not None else {}
+
+
+def linhas_similares(linha1: str, linha2: str, cutoff: float = 0.85) -> bool:
+    """
+    Verifica se duas linhas são similares usando SequenceMatcher.
+
+    Args:
+        linha1: Primeira linha para comparação
+        linha2: Segunda linha para comparação
+        cutoff: Limiar de similaridade (0.0 a 1.0)
+
+    Returns:
+        True se a similaridade for >= cutoff, False caso contrário
+    """
+    if not linha1 and not linha2:
+        return True
+    if not linha1 or not linha2:
+        return False
+
+    similarity = SequenceMatcher(None, linha1.strip(), linha2.strip()).ratio()
+    return similarity >= cutoff
+
+
+def remover_cabecalho_rodape(pages, max_linhas=15, cutoff=0.85):
+    """
+    Remove cabeçalhos (da 2ª página em diante) e rodapés (de todas as páginas),
+    comparando páginas linha a linha.
+
+    Args:
+        pages: Lista de objetos Document
+        max_linhas: Número máximo de linhas para verificar cabeçalho/rodapé
+        cutoff: Limiar de similaridade entre linhas
+
+    Returns:
+        Lista de objetos Document com cabeçalhos e rodapés removidos
+    """
+    resultado = []
+    prev_lines = []
+    prim_cab = 0  # Controla a primeira página em que identificou cabeçalho ou rodapé
+
+    for i, page in enumerate(pages):
+        linhas = page.page_content.splitlines()
+
+        # Caso ainda não tiver identificado nenhum
+        if prim_cab == 0 and i < len(pages) - 1:
+            prev_lines = pages[i+1].page_content.splitlines()
+
+        # --- Detecta cabeçalho (a partir da 2ª página) ---
+        if i > 0 and prev_lines:
+            cabecalho = []
+            for l_atual, l_prev in zip(linhas[:max_linhas], prev_lines[:max_linhas]):
+                if linhas_similares(l_atual, l_prev, cutoff):
+                    cabecalho.append(l_atual)
+                    prim_cab += 1
+                else:
+                    break
+            if cabecalho:
+                linhas = linhas[len(cabecalho):]
+
+        # --- Detecta rodapé (em todas as páginas) ---
+        if prev_lines:
+            rodape = []
+            for l_atual, l_prev in zip(reversed(linhas[-max_linhas:]), reversed(prev_lines[-max_linhas:])):
+                if linhas_similares(l_atual, l_prev, cutoff):
+                    rodape.insert(0, l_atual)
+                    prim_cab += 1
+                else:
+                    break
+            if rodape:
+                linhas = linhas[:-len(rodape)]
+
+        # monta novo Document preservando metadata
+        novo_doc = Document(
+            page_content="\n".join(linhas).strip(),
+            metadata=page.metadata
+        )
+        resultado.append(novo_doc)
+
+        prev_lines = page.page_content.splitlines()
+
+    return resultado
+
+
+def ajustar_quebras_linha(pages):
+    """
+    Recebe as páginas dos documento e ajusta as quebras de linhas para
+    quando a linha atual não terminar com pontuação ".!?;:" e o primeiro caracter
+    da próxima linha for minúsculo, então remove a quebra de linha.
+
+    Args:
+        pages: Lista de objetos Document
+
+    Returns:
+        Lista de objetos Document com quebras de linha ajustadas
+    """
+    docs_ajustados = []
+
+    for page in pages:
+        texto = page.page_content
+        linhas = texto.splitlines()
+        resultado = []
+
+        for i, linha in enumerate(linhas):
+            linha = linha.strip()
+
+            if i > 0:  # existe linha anterior
+                anterior = resultado[-1]
+
+                # condição: anterior não termina em pontuação forte
+                # e linha atual começa com minúscula
+                if anterior and not re.search(r'[.!?;:]\s*$', anterior) and linha and linha[0].islower():
+                    if anterior.endswith('-'):  # quebra com hífen
+                        resultado[-1] = anterior[:-1] + linha
+                    else:
+                        resultado[-1] = anterior + " " + linha
+                    continue
+
+            resultado.append(linha)
+
+        texto_final = "\n".join(resultado)
+
+        # Adiciona como Document mantendo o metadata original
+        docs_ajustados.append(Document(page_content=texto_final, metadata=page.metadata))
+
+    return docs_ajustados
 
 
 class PDFCleaner:
