@@ -243,7 +243,7 @@ def main():
         chunk_size = st.slider(
             "Tamanho do Chunk (caracteres)",
             min_value=100,
-            max_value=2000,
+            max_value=10000,
             value=500,
             step=50,
             help="Quanto maior, menos chunks serão criados"
@@ -404,7 +404,7 @@ def main():
                             "Palavras": len(chunk_text.split())
                         })
 
-                    st.dataframe(chunk_info, use_container_width=True)
+                    st.dataframe(chunk_info, width='stretch')
 
                 else:
                     st.info("👆 Habilite 'Destacar chunks no texto' na sidebar para ver os chunks destacados")
@@ -417,7 +417,7 @@ def main():
             
             with col_a:
                 # Botão para copiar texto limpo
-                if st.button("📋 Copiar Texto Limpo", use_container_width=True):
+                if st.button("📋 Copiar Texto Limpo", width='stretch'):
                     st.code(cleaned_text, language=None)
                     st.info("💡 Use Ctrl+A e Ctrl+C para copiar o texto acima")
             
@@ -428,12 +428,12 @@ def main():
                     data=cleaned_text,
                     file_name=f"{Path(uploaded_file.name).stem}_limpo.txt",
                     mime="text/plain",
-                    use_container_width=True
+                    width='stretch'
                 )
             
             with col_c:
                 # Gerar e baixar PDF limpo (opcional)
-                if st.button("📄 Gerar PDF Limpo", use_container_width=True):
+                if st.button("📄 Gerar PDF Limpo", width='stretch'):
                     with st.spinner("Gerando PDF..."):
                         try:
                             pdf_path = PDFCleaner.create_pdf_from_text(cleaned_text)
@@ -446,7 +446,7 @@ def main():
                                 data=pdf_bytes,
                                 file_name=f"{Path(uploaded_file.name).stem}_limpo.pdf",
                                 mime="application/pdf",
-                                use_container_width=True
+                                width='stretch'
                             )
                             st.success("✅ PDF gerado com sucesso!")
                             
